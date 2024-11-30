@@ -1,37 +1,34 @@
-from PIL import Image, ImageOps
+import cv2
+import numpy as np
+import os
 
 
-def process_image(image_path):
-    """
-    Обрабатывает изображение для подсчета площади выделенных объектов.
-
-    Args:
-        image_path (str): Путь к изображению.
-
-    Returns:
-        dict: Результаты обработки изображения.
-    """
+def flood_fill_highlight(image_path, x, y):
     try:
-        # Открываем изображение
-        image = Image.open(image_path).convert("L")  # Конвертируем в градации серого
+        # Загружаем изображение
+        image = cv2.imread(image_path)
+        h, w = image.shape[:2]
 
-        # Бинаризация (пороговое преобразование)
-        threshold = 127
-        binary_image = image.point(lambda x: 255 if x > threshold else 0, '1')
+        # Создаем пустую маску
+        mask = np.zeros((h + 2, w + 2), np.uint8)
 
-        # Подсчет белых пикселей (обрабатываемая площадь)
-        pixel_data = binary_image.getdata()
-        white_pixels = sum(1 for pixel in pixel_data if pixel == 255)
+        # Выполняем заливку
+        flood_fill_flags = 4 | cv2.FLOODFILL_MASK_ONLY | (255 << 8)
+        cv2.floodFill(image, mask, (x, y), (255, 255, 255), (10, 10, 10), (10, 10, 10), flood_fill_flags)
 
-        # Размер изображения
-        width, height = binary_image.size
-        total_pixels = width * height
+        # Создаем цветную маску
+        mask = mask[1:-1, 1:-1]
+        mask_rgb = cv2.cvtColor(mask * 255, cv2.COLOR_GRAY2BGR)
 
-        # Возвращаем площади
-        return {
-            "total_pixels": total_pixels,
-            "white_pixels": white_pixels,
-            "white_area_percentage": (white_pixels / total_pixels) * 100
-        }
+        # Накладываем маску на оригинальное изображение
+        highlighted = cv2.addWeighted(image, 0.7, mask_rgb, 0.3, 0)
+
+        # Сохраняем результат
+        result_path = image_path.replace(".jpg", "_highlighted.png")
+        cv2.imwrite(result_path, highlighted)
+
+        return result_path
     except Exception as e:
-        return {"error": f"Ошибка обработки изображения: {str(e)}"}
+        print(f"Ошибка: {e}")
+        return None
+

@@ -3,55 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Загрузить изображение</title>
+    <title>Загрузка изображения и выделение</title>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+    <h1>Обработка изображения</h1>
 
-    <h1>Загрузить изображение для обработки</h1>
-
+    <!-- Форма для загрузки изображения -->
     <form id="upload-form">
         <input type="file" id="file-input" name="file" accept="image/*" required>
         <br>
         <button type="submit">Загрузить</button>
     </form>
 
+    <!-- Сообщение -->
     <div class="message" id="message"></div>
 
-    <div id="image-container">
-        <img id="uploaded-image" src="" alt="" style="display:none;">
+    <!-- Холст для изображения -->
+    <div id="canvas-container" style="display: none;">
+        <canvas id="canvas" style="border: 1px solid #000;"></canvas>
+    </div>
+
+    <!-- Кнопка для заполнения данных -->
+    <button id="fill-data-button" style="display: none;">Заполнить данные</button>
+
+    <!-- Форма для ввода данных -->
+    <div id="form-container" style="display: none;">
+        <h2>Введите параметры:</h2>
+        <label for="width">Ширина факела (м):</label>
+        <input type="number" id="width" value="0.1" step="0.01"><br>
+
+        <label for="overlap">Вылет факела за границы элемента (м):</label>
+        <input type="number" id="overlap" value="0.08" step="0.01"><br>
+
+        <label for="layers">Количество слоев:</label>
+        <input type="number" id="layers" value="2" step="1"><br>
+
+        <label for="paint-consumption">Расход ЛКМ 1-го слоя на 1 м² (л):</label>
+        <input type="number" id="paint-consumption" value="0.3" step="0.01"><br>
+
+        <label for="labor-consumption">Трудоемкость нанесения 1-го слоя на 1 м² (ч):</label>
+        <input type="number" id="labor-consumption" value="0.1" step="0.01"><br>
+
+        <label for="front-door-area">Площадь передней двери (м²):</label>
+        <input type="number" id="front-door-area" value="0.8" step="0.01"><br>
+
+        <label for="trunk-area">Площадь крышки багажника (м²):</label>
+        <input type="number" id="trunk-area" value="0.9" step="0.01"><br>
+
+        <label for="hood-area">Площадь капота (м²):</label>
+        <input type="number" id="hood-area" value="1.2" step="0.01"><br>
+
+        <label for="paint-cost">Стоимость 1 литра ЛКМ (₽):</label>
+        <input type="number" id="paint-cost" value="500" step="1"><br>
+
+        <label for="labor-cost">Стоимость 1 нормо-часа (₽):</label>
+        <input type="number" id="labor-cost" value="1000" step="1"><br>
+
+        <button id="generate-report-button">Получить отчет</button>
     </div>
 
     <script>
-        // Обработчик события отправки формы
-        document.getElementById('upload-form').addEventListener('submit', function(event) {
-            event.preventDefault(); // Предотвратить стандартную отправку формы
+        const uploadForm = document.getElementById('upload-form');
+        const messageDiv = document.getElementById('message');
+        const canvasContainer = document.getElementById('canvas-container');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fillDataButton = document.getElementById('fill-data-button');
+        const formContainer = document.getElementById('form-container');
+        let imageUrl = "";
+
+        // Обработчик отправки формы
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
 
             const fileInput = document.getElementById('file-input');
             const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
+            formData.append('file', fileInput.files[0]);
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())  // Ожидаем JSON-ответ
-            .then(data => {
-                document.getElementById('message').textContent = data.message;
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                messageDiv.textContent = data.message;
 
                 if (data.image_url) {
-                    // Показываем загруженное изображение
-                    const imageElement = document.getElementById('uploaded-image');
-                    imageElement.src = data.image_url;
-                    imageElement.style.display = 'block';  // Отображаем изображение
+                    imageUrl = data.image_url;
+
+                    const img = new Image();
+                    img.src = imageUrl;
+
+                    img.onload = () => {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        canvasContainer.style.display = 'block';
+                        fillDataButton.style.display = 'block';
+                    };
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка при отправке:', error);
-                document.getElementById('message').textContent = "Ошибка при отправке.";
-            });
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                messageDiv.textContent = 'Ошибка загрузки.';
+            }
+        });
+
+        // Обработчик кликов на изображение
+        canvas.addEventListener('click', async (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+
+            try {
+                const response = await fetch('/process-click', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x, y, image: imageUrl.split('/').pop() })
+                });
+
+                const data = await response.json();
+                if (data.mask_url) {
+                    const maskImage = new Image();
+                    maskImage.src = data.mask_url;
+
+                    maskImage.onload = () => {
+                        canvas.width = maskImage.width;
+                        canvas.height = maskImage.height;
+                        ctx.drawImage(maskImage, 0, 0);
+                    };
+                }
+            } catch (error) {
+                console.error('Ошибка при обработке клика:', error);
+            }
+        });
+
+        // Обработчик кнопки "Заполнить данные"
+        fillDataButton.addEventListener('click', () => {
+            formContainer.style.display = 'block';
+        });
+
+        // Обработчик кнопки "Получить отчет"
+        document.getElementById('generate-report-button').addEventListener('click', () => {
+            alert('Отчет будет сгенерирован!');
         });
     </script>
-
 </body>
 </html>

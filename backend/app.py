@@ -1,19 +1,16 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from werkzeug.utils import secure_filename
 import os
-from utils.image_processing import process_image
+import cv2
+import numpy as np
+from utils.image_processing import flood_fill_highlight
 
-# Инициализация Flask-приложения
-app = Flask(__name__,
-            template_folder='../frontend/public',  # Указываем, где искать шаблоны
-            static_folder='../frontend/public')  # Указываем папку для статики (если нужно)
+app = Flask(__name__, template_folder='../frontend/public', static_folder='../frontend/public')
 
 # Конфигурация
 UPLOAD_FOLDER = './uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Убедимся, что папка для загрузок существует
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -38,26 +35,26 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # Обрабатываем изображение
-        result = process_image(filepath)
-        if "error" in result:
-            return jsonify({'message': f"Ошибка: {result['error']}"}), 400
-
-        # Подсчитываем площадь
-        white_area_percentage = result.get("white_area_percentage", 0)
-
-        # Возвращаем путь к изображению для отображения
-        image_url = f"/uploads/{filename}"
-
-        return jsonify({
-            'message': f"Изображение загружено успешно! Площадь обработки: {white_area_percentage:.2f}%",
-            'image_url': image_url  # Путь к изображению
-        })
+        return jsonify({'message': 'Изображение загружено успешно!', 'image_url': f"/uploads/{filename}"})
     else:
         return jsonify({'message': 'Ошибка: Неверный формат файла.'}), 400
 
 
-# Статический маршрут для обслуживания загруженных изображений
+@app.route('/process-click', methods=['POST'])
+def process_click():
+    data = request.json
+    x, y = int(data['x']), int(data['y'])
+    image_path = os.path.join(UPLOAD_FOLDER, data['image'])
+
+    # Вызываем функцию flood_fill для выделения области
+    mask_path = flood_fill_highlight(image_path, x, y)
+
+    if not mask_path:
+        return jsonify({'message': 'Ошибка выделения области.'}), 500
+
+    return jsonify({'mask_url': f"/uploads/{os.path.basename(mask_path)}"})
+
+
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
