@@ -142,11 +142,11 @@ def highlight_hood(image_path, x, y):
 
 def analyze_and_highlight(image_path, part):
     """
-    Анализирует изображение автомобиля и выделяет выбранную часть.
+    Анализирует изображение автомобиля и выделяет выбранную часть (например, капот).
     """
     try:
-        # Загружаем модель YOLOv8 (предобученную на COCO)
-        model = YOLO("yolov8n.pt")  # Можно заменить на модель, дообученную на автомобилях
+        # Загружаем модель YOLOv8
+        model = YOLO("yolov8n.pt")  # Предобученная модель
 
         # Загружаем изображение
         img = cv2.imread(image_path)
@@ -157,36 +157,42 @@ def analyze_and_highlight(image_path, part):
         results = model(image_path)
         detections = results[0].boxes
 
-        # Карта для сопоставления частей автомобиля и классов модели
+        # Карта для сопоставления частей автомобиля
         part_to_class = {
             "front_door": ["car door", "door"],
-            "hood": ["hood"],
-            "trunk": ["trunk"]
+            "hood": ["hood", "bonnet"],  # Возможные метки для капота
+            "trunk": ["trunk", "boot"]
         }
-
-        # Выбираем нужные части
         target_classes = part_to_class.get(part, [])
-        highlighted = False
 
+        # Фильтр для нахождения объектов
+        highlighted = False
         for box in detections:
             cls = results[0].names[int(box.cls)]
             if cls in target_classes:
-                # Рисуем прямоугольник вокруг обнаруженного объекта
+                # Координаты объекта
                 x1, y1, x2, y2 = map(int, box.xyxy)
+
+                # Дополнительный фильтр: капот в верхней части изображения
+                if part == "hood" and y1 > img.shape[0] * 0.5:
+                    continue
+
+                # Рисуем прямоугольник вокруг объекта
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
                 highlighted = True
 
-        # Сохраняем изображение
-        output_path = os.path.join("static", f"processed_{part}.png")
-        cv2.imwrite(output_path, img)
+                # Сохраняем изображение с выделенной частью
+                output_path = f"static/processed_{part}.png"
+                cv2.imwrite(output_path, img)
+                return output_path, (x1, y1, x2 - x1, y2 - y1)
 
+        # Если объект не найден
         if not highlighted:
-            return None, None  # Если часть не найдена
-
-        return output_path, (x1, y1, x2 - x1, y2 - y1)
+            return None, None
 
     except Exception as e:
         raise RuntimeError(f"Ошибка анализа изображения: {str(e)}")
+
 
 
 def highlight_trunk(image_path, x, y):
@@ -221,3 +227,45 @@ def highlight_trunk(image_path, x, y):
     except Exception as e:
         raise RuntimeError(f"Ошибка выделения крышки багажника: {str(e)}")
 
+def detect_hood(image_path):
+    """
+    Находит капот автомобиля на изображении с использованием обработки изображения.
+    """
+    try:
+        # Загрузка изображения
+        img = cv2.imread(image_path)
+        if img is None:
+            raise RuntimeError("Не удалось загрузить изображение.")
+
+        # Преобразование в оттенки серого
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Применение порогового значения
+        _, thresh = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY)
+
+        # Поиск контуров
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Фильтр: контуры в верхней половине изображения, большие по размеру
+        h, w = img.shape[:2]
+        hood_contours = []
+        for contour in contours:
+            x, y, w_contour, h_contour = cv2.boundingRect(contour)
+            if y < h // 2 and w_contour > w * 0.3:  # Фильтруем большие объекты в верхней половине
+                hood_contours.append(contour)
+
+        if not hood_contours:
+            return None, None  # Если капот не найден
+
+        # Выбираем самый большой контур (предполагаемый капот)
+        largest_contour = max(hood_contours, key=cv2.contourArea)
+        x, y, w_contour, h_contour = cv2.boundingRect(largest_contour)
+        cv2.rectangle(img, (x, y), (x + w_contour, y + h_contour), (0, 255, 0), 3)
+
+        # Сохраняем изображение с выделенным капотом
+        processed_image_path = "static/processed_hood.png"
+        cv2.imwrite(processed_image_path, img)
+
+        return processed_image_path, (x, y, w_contour, h_contour)
+    except Exception as e:
+        raise RuntimeError(f"Ошибка обработки изображения: {str(e)}")

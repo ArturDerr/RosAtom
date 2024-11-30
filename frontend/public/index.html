@@ -3,50 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/css/styles.css">
-    <title>Выбор части автомобиля</title>
+    <title>Расчёт ЛКМ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        #imageCanvas {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        #inputModal {
+            display: none;
+        }
+        .modal-header {
+            background-color: #f8f9fa;
+        }
+    </style>
 </head>
-<body>
-    <h1>Выбор части автомобиля</h1>
-    <!-- Форма для загрузки файла -->
-    <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" id="fileInput" name="file" accept="image/*" required>
-        <button type="submit">Загрузить</button>
-    </form>
+<body class="bg-light">
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Расчёт физических параметров ЛКМ</h1>
+        <div class="card shadow">
+            <div class="card-body">
+                <!-- Форма для загрузки файла -->
+                <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
+                    <div class="input-group">
+                        <input type="file" id="fileInput" name="file" accept="image/*" class="form-control" required>
+                        <button type="submit" class="btn btn-primary">Загрузить изображение</button>
+                    </div>
+                </form>
 
-    <!-- Выбор части автомобиля -->
-    <label for="partSelect">Выберите часть автомобиля:</label>
-    <select id="partSelect">
-        <option value="front_door">Передняя дверь</option>
-        <option value="hood">Капот</option>
-        <option value="trunk">Крышка багажника</option>
-    </select>
+                <!-- Canvas для отображения изображения -->
+                <div class="text-center">
+                    <canvas id="imageCanvas" width="800" height="600"></canvas>
+                </div>
 
-    <!-- Холст для отображения изображения -->
-    <canvas id="imageCanvas" width="800" height="600"></canvas>
+                <!-- Кнопка для отправки выделенной области -->
+                <div class="text-center mt-3">
+                    <button id="sendButton" class="btn btn-success" disabled>Выделить область</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Кнопка очистки выделений -->
-    <button id="clearButton">Очистить выделения</button>
+    <!-- Модальное окно -->
+    <div id="inputModal" class="modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Введите параметры</h5>
+                    <button type="button" class="btn-close" id="closeModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="parameterForm">
+                        <div class="mb-3">
+                            <label for="torchWidth" class="form-label">Ширина факела (м):</label>
+                            <input type="number" id="torchWidth" name="torchWidth" step="0.01" value="0.1" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="torchExtension" class="form-label">Вылет факела за границы (м):</label>
+                            <input type="number" id="torchExtension" name="torchExtension" step="0.01" value="0.08" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="layers" class="form-label">Количество слоев:</label>
+                            <input type="number" id="layers" name="layers" value="2" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="consumption" class="form-label">Расход ЛКМ на 1 слой (л/м²):</label>
+                            <input type="number" id="consumption" name="consumption" step="0.01" value="0.3" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="paintCost" class="form-label">Стоимость 1 л ЛКМ (руб.):</label>
+                            <input type="number" id="paintCost" name="paintCost" step="0.01" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="hourCost" class="form-label">Стоимость 1 нормо-часа (руб.):</label>
+                            <input type="number" id="hourCost" name="hourCost" step="0.01" class="form-control" required>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">Рассчитать</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const form = document.getElementById('uploadForm');
         const canvas = document.getElementById('imageCanvas');
         const ctx = canvas.getContext('2d');
-        const partSelect = document.getElementById('partSelect');
-        const clearButton = document.getElementById('clearButton');
+        const sendButton = document.getElementById('sendButton');
+        const modal = new bootstrap.Modal(document.getElementById('inputModal'));
+        const closeModalButton = document.getElementById('closeModal');
         let image = new Image();
+        let isDrawing = false;
+        let startX = 0, startY = 0;
+        let rectX = 0, rectY = 0, rectWidth = 0, rectHeight = 0;
 
-        // Обработка формы загрузки
+        // Загрузка изображения
         form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Предотвращаем стандартное поведение формы
+            e.preventDefault();
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-
-            if (!file) {
-                alert("Выберите файл для загрузки!");
-                return;
-            }
-
             const formData = new FormData();
             formData.append('file', file);
 
@@ -60,69 +119,109 @@
                 if (response.ok) {
                     alert(result.message);
 
-                    // Отображение изображения на холсте
+                    // Отображение изображения
                     image.src = result.original_image_url;
                     image.onload = () => {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         canvas.width = image.width;
                         canvas.height = image.height;
                         ctx.drawImage(image, 0, 0);
+                        sendButton.disabled = false;
                     };
                 } else {
                     alert(result.message);
                 }
             } catch (error) {
-                console.error("Ошибка при загрузке:", error);
-                alert("Произошла ошибка при загрузке файла.");
+                console.error("Ошибка загрузки изображения:", error);
             }
         });
 
-        // Обработка кликов на canvas для выделения части автомобиля
-        canvas.addEventListener('click', async (e) => {
+        // Рисование прямоугольника
+        canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const x = Math.round(e.clientX - rect.left);
-            const y = Math.round(e.clientY - rect.top);
-            const part = partSelect.value; // Получаем выбранную часть автомобиля
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            rectX = startX;
+            rectY = startY;
+            rectWidth = mouseX - startX;
+            rectHeight = mouseY - startY;
+
+            // Отображение временного прямоугольника
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        // Открытие модального окна
+        sendButton.addEventListener('click', () => {
+            if (rectWidth === 0 || rectHeight === 0) {
+                alert("Сначала выделите область!");
+                return;
+            }
+            modal.show();
+        });
+
+        // Закрытие модального окна
+        closeModalButton.addEventListener('click', () => {
+            modal.hide();
+        });
+
+        // Отправка формы с параметрами
+        document.getElementById('parameterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const params = {};
+            formData.forEach((value, key) => {
+                params[key] = parseFloat(value);
+            });
+
+            params.rect = { x: rectX, y: rectY, width: rectWidth, height: rectHeight };
 
             try {
-                const response = await fetch('/select_area', {
+                const response = await fetch('/calculate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ x, y, part }),
+                    body: JSON.stringify(params),
                 });
 
-                const data = await response.json();
                 if (response.ok) {
-                    alert(data.message);
-
-                    // Загрузка обработанного изображения
-                    image.src = data.processed_image_url;
-                    image.onload = () => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        canvas.width = image.width;
-                        canvas.height = image.height;
-                        ctx.drawImage(image, 0, 0);
-
-                        // Отрисовка прямоугольника выделенной области
-                        const rect = data.rect;
-                        ctx.strokeStyle = 'red';
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(rect[0], rect[1], rect[2], rect[3]);
-                    };
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'report.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    alert("Отчет успешно скачан!");
                 } else {
-                    alert(data.message || 'Выбранная часть автомобиля не найдена.');
+                    const error = await response.json();
+                    alert(error.message || "Ошибка при создании отчета.");
                 }
             } catch (error) {
-                console.error("Ошибка при выделении:", error);
+                console.error("Ошибка:", error);
+                alert("Произошла ошибка при расчете.");
             }
-        });
-
-        // Очистка выделений
-        clearButton.addEventListener('click', () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(image, 0, 0);
         });
     </script>
 </body>
