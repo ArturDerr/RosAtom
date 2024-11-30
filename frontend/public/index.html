@@ -1,152 +1,128 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Загрузка изображения и выделение</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <title>Выбор части автомобиля</title>
 </head>
 <body>
-    <h1>Обработка изображения</h1>
-
-    <!-- Форма для загрузки изображения -->
-    <form id="upload-form">
-        <input type="file" id="file-input" name="file" accept="image/*" required>
-        <br>
+    <h1>Выбор части автомобиля</h1>
+    <!-- Форма для загрузки файла -->
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" id="fileInput" name="file" accept="image/*" required>
         <button type="submit">Загрузить</button>
     </form>
 
-    <!-- Сообщение -->
-    <div class="message" id="message"></div>
+    <!-- Выбор части автомобиля -->
+    <label for="partSelect">Выберите часть автомобиля:</label>
+    <select id="partSelect">
+        <option value="front_door">Передняя дверь</option>
+        <option value="hood">Капот</option>
+        <option value="trunk">Крышка багажника</option>
+    </select>
 
-    <!-- Холст для изображения -->
-    <div id="canvas-container" style="display: none;">
-        <canvas id="canvas" style="border: 1px solid #000;"></canvas>
-    </div>
+    <!-- Холст для отображения изображения -->
+    <canvas id="imageCanvas" width="800" height="600"></canvas>
 
-    <!-- Кнопка для заполнения данных -->
-    <button id="fill-data-button" style="display: none;">Заполнить данные</button>
-
-    <!-- Форма для ввода данных -->
-    <div id="form-container" style="display: none;">
-        <h2>Введите параметры:</h2>
-        <label for="width">Ширина факела (м):</label>
-        <input type="number" id="width" value="0.1" step="0.01"><br>
-
-        <label for="overlap">Вылет факела за границы элемента (м):</label>
-        <input type="number" id="overlap" value="0.08" step="0.01"><br>
-
-        <label for="layers">Количество слоев:</label>
-        <input type="number" id="layers" value="2" step="1"><br>
-
-        <label for="paint-consumption">Расход ЛКМ 1-го слоя на 1 м² (л):</label>
-        <input type="number" id="paint-consumption" value="0.3" step="0.01"><br>
-
-        <label for="labor-consumption">Трудоемкость нанесения 1-го слоя на 1 м² (ч):</label>
-        <input type="number" id="labor-consumption" value="0.1" step="0.01"><br>
-
-        <label for="front-door-area">Площадь передней двери (м²):</label>
-        <input type="number" id="front-door-area" value="0.8" step="0.01"><br>
-
-        <label for="trunk-area">Площадь крышки багажника (м²):</label>
-        <input type="number" id="trunk-area" value="0.9" step="0.01"><br>
-
-        <label for="hood-area">Площадь капота (м²):</label>
-        <input type="number" id="hood-area" value="1.2" step="0.01"><br>
-
-        <label for="paint-cost">Стоимость 1 литра ЛКМ (₽):</label>
-        <input type="number" id="paint-cost" value="500" step="1"><br>
-
-        <label for="labor-cost">Стоимость 1 нормо-часа (₽):</label>
-        <input type="number" id="labor-cost" value="1000" step="1"><br>
-
-        <button id="generate-report-button">Получить отчет</button>
-    </div>
+    <!-- Кнопка очистки выделений -->
+    <button id="clearButton">Очистить выделения</button>
 
     <script>
-        const uploadForm = document.getElementById('upload-form');
-        const messageDiv = document.getElementById('message');
-        const canvasContainer = document.getElementById('canvas-container');
-        const canvas = document.getElementById('canvas');
+        const form = document.getElementById('uploadForm');
+        const canvas = document.getElementById('imageCanvas');
         const ctx = canvas.getContext('2d');
-        const fillDataButton = document.getElementById('fill-data-button');
-        const formContainer = document.getElementById('form-container');
-        let imageUrl = "";
+        const partSelect = document.getElementById('partSelect');
+        const clearButton = document.getElementById('clearButton');
+        let image = new Image();
 
-        // Обработчик отправки формы
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Обработка формы загрузки
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Предотвращаем стандартное поведение формы
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
 
-            const fileInput = document.getElementById('file-input');
+            if (!file) {
+                alert("Выберите файл для загрузки!");
+                return;
+            }
+
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
                 });
 
-                const data = await response.json();
-                messageDiv.textContent = data.message;
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
 
-                if (data.image_url) {
-                    imageUrl = data.image_url;
-
-                    const img = new Image();
-                    img.src = imageUrl;
-
-                    img.onload = () => {
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        ctx.drawImage(img, 0, 0);
-                        canvasContainer.style.display = 'block';
-                        fillDataButton.style.display = 'block';
+                    // Отображение изображения на холсте
+                    image.src = result.original_image_url;
+                    image.onload = () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        canvas.width = image.width;
+                        canvas.height = image.height;
+                        ctx.drawImage(image, 0, 0);
                     };
+                } else {
+                    alert(result.message);
                 }
             } catch (error) {
-                console.error('Ошибка загрузки:', error);
-                messageDiv.textContent = 'Ошибка загрузки.';
+                console.error("Ошибка при загрузке:", error);
+                alert("Произошла ошибка при загрузке файла.");
             }
         });
 
-        // Обработчик кликов на изображение
+        // Обработка кликов на canvas для выделения части автомобиля
         canvas.addEventListener('click', async (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = Math.round(e.clientX - rect.left);
             const y = Math.round(e.clientY - rect.top);
+            const part = partSelect.value; // Получаем выбранную часть автомобиля
 
             try {
-                const response = await fetch('/process-click', {
+                const response = await fetch('/select_area', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ x, y, image: imageUrl.split('/').pop() })
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ x, y, part }),
                 });
 
                 const data = await response.json();
-                if (data.mask_url) {
-                    const maskImage = new Image();
-                    maskImage.src = data.mask_url;
+                if (response.ok) {
+                    alert(data.message);
 
-                    maskImage.onload = () => {
-                        canvas.width = maskImage.width;
-                        canvas.height = maskImage.height;
-                        ctx.drawImage(maskImage, 0, 0);
+                    // Загрузка обработанного изображения
+                    image.src = data.processed_image_url;
+                    image.onload = () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        canvas.width = image.width;
+                        canvas.height = image.height;
+                        ctx.drawImage(image, 0, 0);
+
+                        // Отрисовка прямоугольника выделенной области
+                        const rect = data.rect;
+                        ctx.strokeStyle = 'red';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(rect[0], rect[1], rect[2], rect[3]);
                     };
+                } else {
+                    alert(data.message || 'Выбранная часть автомобиля не найдена.');
                 }
             } catch (error) {
-                console.error('Ошибка при обработке клика:', error);
+                console.error("Ошибка при выделении:", error);
             }
         });
 
-        // Обработчик кнопки "Заполнить данные"
-        fillDataButton.addEventListener('click', () => {
-            formContainer.style.display = 'block';
-        });
-
-        // Обработчик кнопки "Получить отчет"
-        document.getElementById('generate-report-button').addEventListener('click', () => {
-            alert('Отчет будет сгенерирован!');
+        // Очистка выделений
+        clearButton.addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
         });
     </script>
 </body>

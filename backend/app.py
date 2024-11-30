@@ -3,7 +3,8 @@ from werkzeug.utils import secure_filename
 import os
 import cv2
 import numpy as np
-from utils.image_processing import flood_fill_highlight
+from utils.image_processing import process_image, auto_select_area, highlight_front_door, highlight_trunk, \
+    highlight_hood, analyze_and_highlight
 
 app = Flask(__name__, template_folder='../frontend/public', static_folder='../frontend/public')
 
@@ -12,6 +13,7 @@ UPLOAD_FOLDER = './uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+current_image_path = None  # Переменная для хранения пути к текущему загруженному изображению
 
 
 # Проверка допустимых форматов файла
@@ -26,6 +28,7 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    global current_image_path  # Глобальная переменная для пути
     if 'file' not in request.files:
         return jsonify({'message': 'Ошибка: файл не найден.'}), 400
 
@@ -35,24 +38,42 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        return jsonify({'message': 'Изображение загружено успешно!', 'image_url': f"/uploads/{filename}"})
-    else:
-        return jsonify({'message': 'Ошибка: Неверный формат файла.'}), 400
+        # Обновляем глобальную переменную
+        current_image_path = filepath
+
+        # Возвращаем ссылку на загруженное изображение
+        return jsonify({
+            "message": "Файл успешно загружен.",
+            "original_image_url": f"/uploads/{filename}",
+        })
+
+    return jsonify({'message': 'Ошибка: Неверный формат файла.'}), 400
 
 
-@app.route('/process-click', methods=['POST'])
-def process_click():
+@app.route('/select_area', methods=['POST'])
+def select_area():
     data = request.json
-    x, y = int(data['x']), int(data['y'])
-    image_path = os.path.join(UPLOAD_FOLDER, data['image'])
+    if not data or 'part' not in data:
+        return jsonify({'message': 'Не указана часть автомобиля для выделения.'}), 400
 
-    # Вызываем функцию flood_fill для выделения области
-    mask_path = flood_fill_highlight(image_path, x, y)
+    part = data['part']
 
-    if not mask_path:
-        return jsonify({'message': 'Ошибка выделения области.'}), 500
+    if not current_image_path:
+        return jsonify({'message': 'Файл еще не загружен.'}), 400
 
-    return jsonify({'mask_url': f"/uploads/{os.path.basename(mask_path)}"})
+    try:
+        processed_image_path, rect = analyze_and_highlight(current_image_path, part)
+
+        if not rect:
+            return jsonify({'message': 'Выбранная часть автомобиля не найдена.'}), 404
+
+        return jsonify({
+            'message': 'Область успешно выделена!',
+            'processed_image_url': '/' + processed_image_path,
+            'rect': rect  # Координаты выделенной области
+        })
+    except Exception as e:
+        return jsonify({'message': f'Ошибка при выделении области: {str(e)}'}), 500
 
 
 @app.route('/uploads/<filename>')
