@@ -1,5 +1,5 @@
 def calculate_report(data):
-    width_fakel = 0.1  # Пример: ширина факела
+    width_fakel = 0.1
     layers = 2
     paint_consumption_per_layer = 0.3
     labor_time_per_layer = 0.1
