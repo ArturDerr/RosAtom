@@ -1,32 +1,5 @@
 # Документация к проекту: "Расчет трудовых и материальных затрат на операции по окраске элементов сложных объектов"
 
-## Структура проекта
-├── backend/
-│   ├── app.py
-│   ├── config.py
-│   ├── requirements.txt
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── segmentation_model.py
-│   ├── utils/
-│   │   ├── calculations.py
-│   │   ├── image_processing.py
-├── frontend/
-    ├── package.json
-    ├── public/
-    │   ├── index.html
-    │   ├── css/
-    │       ├── styles.css
-    ├── src/
-        ├── App.js
-        ├── index.js
-        ├── components/
-        │   ├── Report.jsx
-        │   ├── SettingsForm.jsx
-        │   ├── UploadForm.jsx
-        ├── services/
-            ├── api.js
-
 ### Backend
 
 - **`app.py`**  
