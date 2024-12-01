@@ -25,7 +25,6 @@
         <h1 class="text-center mb-4">Расчёт физических параметров ЛКМ</h1>
         <div class="card shadow">
             <div class="card-body">
-                <!-- Форма для загрузки файла -->
                 <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
                     <div class="input-group">
                         <input type="file" id="fileInput" name="file" accept="image/*" class="form-control" required>
@@ -33,12 +32,10 @@
                     </div>
                 </form>
 
-                <!-- Canvas для отображения изображения -->
                 <div class="text-center">
                     <canvas id="imageCanvas" width="800" height="600"></canvas>
                 </div>
 
-                <!-- Кнопка для отправки выделенной области -->
                 <div class="text-center mt-3">
                     <button id="sendButton" class="btn btn-success" disabled>Выделить область</button>
                 </div>
@@ -46,7 +43,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно -->
     <div id="inputModal" class="modal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -101,7 +97,6 @@
         let startX = 0, startY = 0;
         let rectX = 0, rectY = 0, rectWidth = 0, rectHeight = 0;
 
-        // Загрузка изображения
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const fileInput = document.getElementById('fileInput');
@@ -119,7 +114,6 @@
                 if (response.ok) {
                     alert(result.message);
 
-                    // Отображение изображения
                     image.src = result.original_image_url;
                     image.onload = () => {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -136,7 +130,6 @@
             }
         });
 
-        // Рисование прямоугольника
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             startX = e.clientX - rect.left;
@@ -156,7 +149,6 @@
             rectWidth = mouseX - startX;
             rectHeight = mouseY - startY;
 
-            // Отображение временного прямоугольника
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(image, 0, 0);
             ctx.strokeStyle = 'blue';
@@ -168,7 +160,6 @@
             isDrawing = false;
         });
 
-        // Открытие модального окна
         sendButton.addEventListener('click', () => {
             if (rectWidth === 0 || rectHeight === 0) {
                 alert("Сначала выделите область!");
@@ -177,12 +168,10 @@
             modal.show();
         });
 
-        // Закрытие модального окна
         closeModalButton.addEventListener('click', () => {
             modal.hide();
         });
 
-        // Отправка формы с параметрами
         document.getElementById('parameterForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
